@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from systemone_nodes.nodes import SystemOne, SystemOneQuestion, parse_criteria
+from systemone_nodes.nodes import SystemOne, SystemOneAnswer, SystemOneQuestion, parse_criteria
 
 
 def test_choice_criteria_keep_line_order():
@@ -138,3 +138,47 @@ def test_duplicate_question_names_raise(monkeypatch):
     with pytest.raises(ValueError, match="route"):
         SystemOne.execute(URL, "jeff-latest", STATE, {"question0": ROUTE, "question1": ROUTE})
     assert post.calls == []
+
+
+def answer(name, question, response_answer):
+    return SystemOneAnswer.execute({name: {"question": question, "answer": response_answer}}, name).result
+
+
+def test_choice_answer():
+    question = {"type": "choice", "instructions": "Team", "criteria": {"billing": "b", "technical": "t", "sales": "s"}}
+    response = {"type": "choice", "choice": "technical", "probabilities": {"technical": 0.85, "billing": 0.15}, "confidence": 0.78}
+
+    assert answer("department", question, response) == ("technical", 1, 0.85, 0.78, [0.15, 0.85, 0.0])
+
+
+def test_score_answer():
+    question = {"type": "score", "instructions": "Frustration", "criteria": ["Calm", "Frustrated", "Very angry"]}
+    response = {
+        "type": "score",
+        "score": 1.4,
+        "legend": {"0": "Calm", "1": "Frustrated", "2": "Very angry"},
+        "probabilities": {"0": 0.0, "1": 0.6, "2": 0.4},
+        "confidence": 0.5,
+    }
+
+    assert answer("frustration", question, response) == ("1", 1, 1.4, 0.5, [0.0, 0.6, 0.4])
+
+
+def test_noul_answer_yes():
+    choice, index, value, confidence, probabilities = answer("refund", {"type": "noul", "instructions": "Refund?"}, {"type": "noul", "noul": 0.91})
+
+    assert (choice, index, value, confidence) == ("true", 1, 0.91, 1.0)
+    assert probabilities == pytest.approx([0.09, 0.91])
+
+
+def test_noul_answer_no():
+    choice, index, *_ = answer("refund", {"type": "noul", "instructions": "Refund?"}, {"type": "noul", "noul": 0.3})
+
+    assert (choice, index) == ("false", 0)
+
+
+def test_unknown_answer_name_lists_available():
+    answers = {"route": {"question": ROUTE[1], "answer": EXAMPLE_RESPONSE["answers"]["route"]}}
+
+    with pytest.raises(ValueError, match="Available: route"):
+        SystemOneAnswer.execute(answers, "angry")

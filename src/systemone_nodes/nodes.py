@@ -95,12 +95,55 @@ class SystemOne(io.ComfyNode):
         return io.NodeOutput({name: {"question": question, "answer": answers[name]} for name, question in request_questions.items()})
 
 
+def answer_outputs(question, answer):
+    if answer["type"] == "choice":
+        keys = list(question["criteria"])
+        choice = answer["choice"]
+        probabilities = [answer["probabilities"].get(key, 0.0) for key in keys]
+        return choice, keys.index(choice), answer["probabilities"][choice], answer["confidence"], probabilities
+    if answer["type"] == "score":
+        score = answer["score"]
+        probabilities = [answer["probabilities"].get(str(i), 0.0) for i in range(len(question["criteria"]))]
+        return str(round(score)), round(score), score, answer["confidence"], probabilities
+    noul = answer["noul"]
+    yes = noul >= 0.5
+    return ("true" if yes else "false"), int(yes), noul, 1.0, [1.0 - noul, noul]
+
+
+class SystemOneAnswer(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SystemOneAnswer",
+            display_name="SystemOne Answer",
+            category="SystemOne",
+            inputs=[
+                Answers.Input("answers"),
+                io.String.Input("name", default="question"),
+            ],
+            outputs=[
+                io.String.Output(display_name="choice", tooltip="choice: option key. score: rounded level. noul: 'true' if P(yes) >= 0.5."),
+                io.Int.Output(display_name="index", tooltip="choice: position of the option in criteria. score: rounded level. noul: 1 or 0."),
+                io.Float.Output(display_name="value", tooltip="choice: probability of the chosen option. score: weighted score. noul: P(yes)."),
+                io.Float.Output(display_name="confidence", tooltip="Answer concentration. Noul has no confidence and always outputs 1.0."),
+                io.Float.Output(display_name="probabilities", tooltip="Per option or level, in criteria order. noul: [P(no), P(yes)].", is_output_list=True),
+            ],
+        )
+
+    @classmethod
+    def execute(cls, answers, name) -> io.NodeOutput:
+        if name not in answers:
+            raise ValueError(f"No SystemOne answer named {name!r}. Available: {', '.join(answers)}")
+        return io.NodeOutput(*answer_outputs(answers[name]["question"], answers[name]["answer"]))
+
+
 class SystemOneExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SystemOneQuestion,
             SystemOne,
+            SystemOneAnswer,
         ]
 
 
