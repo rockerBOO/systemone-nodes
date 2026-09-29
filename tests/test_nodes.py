@@ -30,6 +30,11 @@ def test_score_criteria_is_ordered_list():
     assert parse_criteria("score", "Calm\n\n Frustrated \nVery angry") == ["Calm", "Frustrated", "Very angry"]
 
 
+def test_choice_duplicate_key_raises():
+    with pytest.raises(ValueError, match="'anime'"):
+        parse_criteria("choice", "anime: Anime\nanime: Also anime")
+
+
 def test_question_output():
     name, question = SystemOneQuestion.execute("route", "choice", "Which team?", "1: Refunds\n2: Damaged").result[0]
 
@@ -182,6 +187,29 @@ def test_noul_answer_no():
     choice, index, *_ = answer("refund", {"type": "noul", "instructions": "Refund?"}, {"type": "noul", "noul": 0.3})
 
     assert (choice, index) == ("false", 0)
+
+
+def test_score_answer_rounds_half_up():
+    question = {"type": "score", "instructions": "Frustration", "criteria": ["Calm", "Frustrated", "Very angry", "Livid"]}
+
+    choice, index, *_ = answer(
+        "frustration",
+        question,
+        {"type": "score", "score": 2.5, "probabilities": {"0": 0.0, "1": 0.0, "2": 0.5, "3": 0.5}, "confidence": 0.5},
+    )
+    assert (choice, index) == ("3", 3)
+
+    choice, index, *_ = answer(
+        "frustration",
+        question,
+        {"type": "score", "score": 0.5, "probabilities": {"0": 0.5, "1": 0.5, "2": 0.0, "3": 0.0}, "confidence": 0.5},
+    )
+    assert (choice, index) == ("1", 1)
+
+
+def test_unsupported_answer_type_raises():
+    with pytest.raises(ValueError, match="'oops'"):
+        answer("x", {"type": "oops", "instructions": "?"}, {"type": "oops"})
 
 
 def test_unknown_answer_name_lists_available():

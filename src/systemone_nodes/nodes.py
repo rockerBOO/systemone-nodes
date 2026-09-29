@@ -20,7 +20,10 @@ def parse_criteria(question_type, text):
         key, sep, description = line.partition(":")
         if not sep:
             raise ValueError(f"Criteria line must be 'key: description', got {line!r}")
-        criteria[key.strip()] = description.strip()
+        key = key.strip()
+        if key in criteria:
+            raise ValueError(f"Duplicate criteria key {key!r}")
+        criteria[key] = description.strip()
     return criteria
 
 
@@ -106,11 +109,14 @@ def answer_outputs(question, answer):
         return choice, keys.index(choice), answer["probabilities"][choice], answer["confidence"], probabilities
     if answer["type"] == "score":
         score = answer["score"]
+        level = int(score + 0.5)
         probabilities = [answer["probabilities"].get(str(i), 0.0) for i in range(len(question["criteria"]))]
-        return str(round(score)), round(score), score, answer["confidence"], probabilities
-    noul = answer["noul"]
-    yes = noul >= 0.5
-    return ("true" if yes else "false"), int(yes), noul, 1.0, [1.0 - noul, noul]
+        return str(level), level, score, answer["confidence"], probabilities
+    if answer["type"] == "noul":
+        noul = answer["noul"]
+        yes = noul >= 0.5
+        return ("true" if yes else "false"), int(yes), noul, 1.0, [1.0 - noul, noul]
+    raise ValueError(f"Unsupported SystemOne answer type {answer['type']!r}")
 
 
 class SystemOneAnswer(io.ComfyNode):
