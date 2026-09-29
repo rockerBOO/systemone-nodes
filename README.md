@@ -2,6 +2,8 @@
 
 ComfyUI nodes that ask a SystemOne server typed questions about some text and branch the workflow on the answers — e.g. pick a LoRA from the prompt.
 
+<img width="2119" height="1159" alt="Image" src="https://github.com/user-attachments/assets/3fce6860-075a-4f90-a0b7-9e729db5be38" />
+
 ## Install
 
 Clone into `ComfyUI/custom_nodes/`, then install the package into ComfyUI's environment:
