@@ -1,7 +1,11 @@
+import os
+
+import requests
 from typing_extensions import override
 from comfy_api.latest import ComfyExtension, io
 
 Question = io.Custom("SYSTEMONE_QUESTION")
+Answers = io.Custom("SYSTEMONE_ANSWERS")
 
 
 def parse_criteria(question_type, text):
@@ -46,11 +50,57 @@ class SystemOneQuestion(io.ComfyNode):
         return io.NodeOutput((name, question))
 
 
+class SystemOne(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        return io.Schema(
+            node_id="SystemOne",
+            display_name="SystemOne",
+            category="SystemOne",
+            description="Ask a SystemOne server questions about a state. Set TYPESAFE_API_KEY to authenticate with a hosted server.",
+            inputs=[
+                io.String.Input("server_url", default="http://localhost:8765/v1/systemone"),
+                io.String.Input("model", default="jeff-latest"),
+                io.String.Input("state", multiline=True),
+                io.Autogrow.Input(
+                    "questions",
+                    template=io.Autogrow.TemplatePrefix(Question.Input("question"), prefix="question", min=1, max=50),
+                ),
+            ],
+            outputs=[Answers.Output()],
+        )
+
+    @classmethod
+    def execute(cls, server_url, model, state, questions) -> io.NodeOutput:
+        request_questions = {}
+        for name, question in questions.values():
+            if name in request_questions:
+                raise ValueError(f"Duplicate SystemOne question name: {name!r}")
+            request_questions[name] = question
+
+        headers = {}
+        api_key = os.environ.get("TYPESAFE_API_KEY")
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        response = requests.post(
+            server_url,
+            json={"model": model, "state": state, "questions": request_questions},
+            headers=headers,
+            timeout=60,
+        )
+        if not response.ok:
+            raise RuntimeError(f"SystemOne request failed ({response.status_code}): {response.text}")
+        answers = response.json()["answers"]
+        return io.NodeOutput({name: {"question": question, "answer": answers[name]} for name, question in request_questions.items()})
+
+
 class SystemOneExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
         return [
             SystemOneQuestion,
+            SystemOne,
         ]
 
 
