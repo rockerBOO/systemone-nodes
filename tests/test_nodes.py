@@ -2,7 +2,14 @@ import json
 
 import pytest
 
-from systemone_nodes.nodes import SystemOne, SystemOneAnswer, SystemOneQuestion, parse_criteria
+from systemone_nodes.nodes import (
+    SystemOne,
+    SystemOneAnswer,
+    SystemOneChoiceSwitch,
+    SystemOneQuestion,
+    SystemOneThresholdSwitch,
+    parse_criteria,
+)
 
 
 def test_choice_criteria_keep_line_order():
@@ -182,3 +189,33 @@ def test_unknown_answer_name_lists_available():
 
     with pytest.raises(ValueError, match="Available: route"):
         SystemOneAnswer.execute(answers, "angry")
+
+
+def test_threshold_switch_requests_selected_branch():
+    assert SystemOneThresholdSwitch.check_lazy_status(0.9, 0.8, on_true=None, on_false=None) == ["on_true"]
+    assert SystemOneThresholdSwitch.check_lazy_status(0.5, 0.8, on_true=None, on_false=None) == ["on_false"]
+
+
+def test_threshold_switch_value_equal_to_threshold_is_true():
+    assert SystemOneThresholdSwitch.execute(0.8, 0.8, on_true="yes", on_false="no").result == ("yes",)
+
+
+def test_threshold_switch_below_threshold_is_false():
+    assert SystemOneThresholdSwitch.execute(0.2, 0.8, on_true="yes", on_false="no").result == ("no",)
+
+
+def test_threshold_switch_unconnected_branch_outputs_none():
+    assert SystemOneThresholdSwitch.execute(0.9, 0.8, on_false="no").result == (None,)
+
+
+def test_choice_switch_requests_only_selected_option():
+    assert SystemOneChoiceSwitch.check_lazy_status(1, option0=None, option1=None) == ["option1"]
+
+
+def test_choice_switch_outputs_selected_option():
+    assert SystemOneChoiceSwitch.execute(1, option0=None, option1="b").result == ("b",)
+
+
+def test_choice_switch_unconnected_index_raises():
+    with pytest.raises(ValueError, match="index 3.*option0, option1"):
+        SystemOneChoiceSwitch.execute(3, option0="a", option1="b")

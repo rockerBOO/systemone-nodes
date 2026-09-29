@@ -7,6 +7,9 @@ from comfy_api.latest import ComfyExtension, io
 Question = io.Custom("SYSTEMONE_QUESTION")
 Answers = io.Custom("SYSTEMONE_ANSWERS")
 
+MISSING = object()
+CHOICE_SWITCH_OPTIONS = 10
+
 
 def parse_criteria(question_type, text):
     lines = [line.strip() for line in text.splitlines() if line.strip()]
@@ -137,6 +140,65 @@ class SystemOneAnswer(io.ComfyNode):
         return io.NodeOutput(*answer_outputs(answers[name]["question"], answers[name]["answer"]))
 
 
+class SystemOneThresholdSwitch(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.MatchType.Template("switch")
+        return io.Schema(
+            node_id="SystemOneThresholdSwitch",
+            display_name="SystemOne Threshold Switch",
+            category="SystemOne",
+            description="Outputs on_true when value >= threshold, otherwise on_false. Only the selected branch runs.",
+            inputs=[
+                io.Float.Input("value", force_input=True),
+                io.Float.Input("threshold", default=0.8, min=0.0, max=10.0, step=0.01),
+                io.MatchType.Input("on_true", template=template, lazy=True, optional=True),
+                io.MatchType.Input("on_false", template=template, lazy=True, optional=True),
+            ],
+            outputs=[io.MatchType.Output(template=template, display_name="output")],
+        )
+
+    @classmethod
+    def check_lazy_status(cls, value, threshold, on_true=MISSING, on_false=MISSING):
+        if value >= threshold and on_true is None:
+            return ["on_true"]
+        if value < threshold and on_false is None:
+            return ["on_false"]
+
+    @classmethod
+    def execute(cls, value, threshold, on_true=MISSING, on_false=MISSING) -> io.NodeOutput:
+        selected = on_true if value >= threshold else on_false
+        return io.NodeOutput(None if selected is MISSING else selected)
+
+
+class SystemOneChoiceSwitch(io.ComfyNode):
+    @classmethod
+    def define_schema(cls):
+        template = io.MatchType.Template("switch")
+        return io.Schema(
+            node_id="SystemOneChoiceSwitch",
+            display_name="SystemOne Choice Switch",
+            category="SystemOne",
+            description="Outputs option{index}. Only the selected option runs. Chain another switch for more than 10 options.",
+            inputs=[io.Int.Input("index", default=0, min=0, max=CHOICE_SWITCH_OPTIONS - 1)]
+            + [io.MatchType.Input(f"option{i}", template=template, lazy=True, optional=True) for i in range(CHOICE_SWITCH_OPTIONS)],
+            outputs=[io.MatchType.Output(template=template, display_name="output")],
+        )
+
+    @classmethod
+    def check_lazy_status(cls, index, **options):
+        key = f"option{index}"
+        if key in options and options[key] is None:
+            return [key]
+
+    @classmethod
+    def execute(cls, index, **options) -> io.NodeOutput:
+        key = f"option{index}"
+        if key not in options:
+            raise ValueError(f"SystemOne Choice Switch index {index} has no connected input. Connected: {', '.join(sorted(options))}")
+        return io.NodeOutput(options[key])
+
+
 class SystemOneExtension(ComfyExtension):
     @override
     async def get_node_list(self) -> list[type[io.ComfyNode]]:
@@ -144,6 +206,8 @@ class SystemOneExtension(ComfyExtension):
             SystemOneQuestion,
             SystemOne,
             SystemOneAnswer,
+            SystemOneThresholdSwitch,
+            SystemOneChoiceSwitch,
         ]
 
 
