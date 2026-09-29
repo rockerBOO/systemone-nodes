@@ -1,0 +1,20 @@
+[project]
+name = "systemone-nodes"
+version = "0.1.0"
+description = "ComfyUI nodes that ask a SystemOne server typed questions and branch on the answers"
+readme = "README.md"
+authors = [
+    { name = "rockerBOO", email = "rockerboo@gmail.com" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["./src"]
+
+[build-system]
+requires = ["uv_build>=0.12.20,<0.13.0"]
+build-backend = "uv_build"
