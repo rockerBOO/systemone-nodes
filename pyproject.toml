@@ -3,6 +3,8 @@ name = "systemone-nodes"
 version = "0.1.0"
 description = "ComfyUI nodes that ask a SystemOne server typed questions and branch on the answers"
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [
     { name = "rockerBOO", email = "rockerboo@gmail.com" }
 ]
